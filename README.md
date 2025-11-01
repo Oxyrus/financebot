@@ -6,7 +6,7 @@ FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses 
 - Telegram message polling restricted to approved usernames
 - Expense extraction via OpenAI Chat Completions with strict JSON responses
  - Modular Go packages for configuration, extraction, storage (SQLite), and Telegram handling
- - Makefile workflow for build, run, test, and formatting tasks
+- Makefile workflow for build, run, test, formatting, and Docker tasks
 
 ## Prerequisites
 - Go 1.25 or newer
@@ -31,7 +31,16 @@ FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses 
    make run     # start the bot locally (creates data/financebot.db by default)
    make test    # run unit/integration tests
    make fmt     # gofmt cmd/ and internal/
+   make docker-build  # build container image (tags as financebot:latest)
+   make docker-run    # run container with .env and ./data volume
    ```
+
+## Docker Usage
+- Ensure a `.env` file exists with the required tokens/keys before running the container.
+- Build the image once with `make docker-build` or `docker build -t financebot:latest .`.
+- Start the bot with `make docker-run`; the command maps `./data` to `/app/data` so SQLite data persists on the host.
+- Override the default image tag or volume mount as needed for deployment environments.
+- The image is based on `gcr.io/distroless/static-debian12` and runs as user `65532`; make sure the host `data/` directory is writable (e.g., `mkdir -p data && chmod 0777 data` before `make docker-run`).
 
 ## Development Notes
  - Storage uses SQLite via `internal/storage/sqlite` (pure Go driver). The database file defaults to `data/financebot.db`; override with `DATABASE_PATH`. Keep backups outside the repo.

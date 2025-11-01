@@ -7,6 +7,7 @@ The module is `github.com/Oxyrus/financebot`. Runtime entry stays in `cmd/main.g
 - `go run ./cmd` boots the Telegram bot against your local environment variables.
 - `go build ./cmd` produces a deployable binary; combine with a systemd service or container for prod.
 - `go test ./...` runs every unit test; gate pull requests on a clean run.
+- `make docker-build` builds the container image (`financebot:latest`); `make docker-run` starts it with local `.env` and `./data` volume (ensure `data/` is writable by UID 65532).
 
 ## Coding Style & Naming Conventions
 Run `gofmt` (tabs; idiomatic Go spacing) before committing. Use CamelCase for exported identifiers (`ExpenseRepository`) and mixedCaps for internal helpers. Keep prompt templates and message text in package-level constants. Prefer constructor functions that accept interfaces (`NewBotHandler(client OpenAI, repo ExpenseStore)`) to support mocks and future adapters.
@@ -16,6 +17,7 @@ Rely on the standard `testing` package with table-driven cases. Store test doubl
 
 ## Data & Persistence Practices
 SQLite persistence now lives in `internal/storage/sqlite` using the pure Go `modernc.org/sqlite` driver. The database file defaults to `data/financebot.db`; override with the `DATABASE_PATH` env var. Migrations run automatically on startup—extend the schema statements as new features land. Keep `.db` artifacts out of git but schedule periodic backups (e.g., cron to Google Drive). Rotate API keys promptly if leaked.
+Container images write database files to `/app/data` inside a distroless image running as UID 65532; grant write permissions on mounted volumes ahead of time. Use secrets managers (or `.env` mounted as a secret) for API keys in production deployments.
 
 ## Commit & Pull Request Guidelines
 Write imperative, concise commit subjects (~50 chars). Include body details when you add a feature, fix a bug, or change schema. PRs should describe the problem, the solution, testing evidence (`go test ./...` output), and screenshots/logs when behavior changes. Keep PRs scoped; submit refactors separately from feature work.

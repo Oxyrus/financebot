@@ -22,3 +22,11 @@ tidy: ## Sync module dependencies
 
 clean: ## Remove build artifacts
 	rm -rf $(BIN_DIR)
+
+.PHONY: docker-build docker-run
+
+docker-build: ## Build the Docker image for FinanceBot
+	docker build -t $(APP_NAME):latest .
+
+docker-run: ## Run FinanceBot in Docker using the local .env and data volume
+	docker run --rm --env-file .env -v $(PWD)/data:/app/data $(APP_NAME):latest

@@ -1,0 +1,12 @@
+.git
+.github
+.env
+bin
+data
+tmp
+*.log
+*.out
+*.test
+coverage.*
+profile.cov
+*.coverprofile

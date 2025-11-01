@@ -14,7 +14,7 @@ import (
 	"github.com/Oxyrus/financebot/internal/bot"
 	"github.com/Oxyrus/financebot/internal/config"
 	"github.com/Oxyrus/financebot/internal/extractor"
-	"github.com/Oxyrus/financebot/internal/storage/memory"
+	"github.com/Oxyrus/financebot/internal/storage/sqlite"
 )
 
 func main() {
@@ -33,7 +33,15 @@ func main() {
 
 	openaiClient := openai.NewClient(cfg.OpenAIKey)
 	extractorSvc := extractor.NewOpenAI(openaiClient)
-	store := memory.NewStore()
+	store, err := sqlite.NewStore(cfg.DatabasePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			log.Printf("close store: %v", err)
+		}
+	}()
 
 	expenseBot := bot.New(botAPI, cfg, extractorSvc, store)
 

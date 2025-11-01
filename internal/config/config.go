@@ -13,8 +13,11 @@ import (
 type Config struct {
 	TelegramToken string
 	OpenAIKey     string
+	DatabasePath  string
 	allowedUsers  map[string]struct{}
 }
+
+const defaultDatabasePath = "data/financebot.db"
 
 // Load reads environment variables (optionally via .env) and validates them.
 func Load() (*Config, error) {
@@ -25,6 +28,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		TelegramToken: os.Getenv("TELEGRAM_TOKEN"),
 		OpenAIKey:     os.Getenv("OPENAI_API_KEY"),
+		DatabasePath:  firstNonEmpty(os.Getenv("DATABASE_PATH"), defaultDatabasePath),
 		allowedUsers:  parseAllowedUsers(os.Getenv("AUTHORIZED_USERS")),
 	}
 
@@ -46,6 +50,15 @@ func (c *Config) IsUserAllowed(username string) bool {
 	}
 	_, ok := c.allowedUsers[username]
 	return ok
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func parseAllowedUsers(raw string) map[string]struct{} {

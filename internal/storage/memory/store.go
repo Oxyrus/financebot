@@ -38,3 +38,8 @@ func (s *Store) Items() []expense.Item {
 	copy(cp, s.expenses)
 	return cp
 }
+
+// Close satisfies the ExpenseStore interface; no cleanup required.
+func (s *Store) Close() error {
+	return nil
+}

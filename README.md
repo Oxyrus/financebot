@@ -23,6 +23,7 @@ FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses 
    TELEGRAM_TOKEN=your-telegram-token
    OPENAI_API_KEY=your-openai-key
    AUTHORIZED_USERS=iamoxyrus,anotheruser
+   DATABASE_PATH=data/financebot.db
    ```
 3. Use the Makefile for common workflows:
    ```sh
@@ -33,11 +34,11 @@ FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses 
    ```
 
 ## Development Notes
-- Storage currently defaults to `internal/storage/memory`. Replace it with a database-backed implementation under `internal/storage/<db>`; expose configuration via `DATABASE_URL` and migrations.
+- Storage now uses SQLite via `internal/storage/sqlite` (pure Go driver). The database file defaults to `data/financebot.db`; override with `DATABASE_PATH`.
 - Telemetry and structured logging hooks can be added in `internal/bot` once persistence is in place.
 - Keep OpenAI prompts and Telegram responses as package-level constants to simplify testing.
 
 ## Roadmap
-- [ ] Introduce persistent storage (Postgres/SQLite) with migrations
+- [ ] Expand migrations to handle schema changes (e.g., budgets, tags)
 - [ ] Add unit tests for extractor, bot handler, and storage adapters
 - [ ] Build expense dashboard leveraging the stored data

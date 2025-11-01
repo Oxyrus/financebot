@@ -1,12 +1,12 @@
 # FinanceBot
 
-FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses from natural language messages. The bot extracts category, amount, and description, echoes a confirmation, and stores the entry (currently in-memory with a pluggable storage layer ready for a database backend).
+FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses from natural language messages. The bot extracts category, amount, and description, echoes a confirmation, and stores the entry in a local SQLite database for future dashboarding.
 
 ## Features
 - Telegram message polling restricted to approved usernames
 - Expense extraction via OpenAI Chat Completions with strict JSON responses
-- Modular Go packages for configuration, extraction, storage, and Telegram handling
-- Makefile workflow for build, run, test, and formatting tasks
+ - Modular Go packages for configuration, extraction, storage (SQLite), and Telegram handling
+ - Makefile workflow for build, run, test, and formatting tasks
 
 ## Prerequisites
 - Go 1.25 or newer
@@ -28,17 +28,17 @@ FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses 
 3. Use the Makefile for common workflows:
    ```sh
    make build   # compile to bin/financebot
-   make run     # start the bot locally
-   make test    # run unit tests
+   make run     # start the bot locally (creates data/financebot.db by default)
+   make test    # run unit/integration tests
    make fmt     # gofmt cmd/ and internal/
    ```
 
 ## Development Notes
-- Storage now uses SQLite via `internal/storage/sqlite` (pure Go driver). The database file defaults to `data/financebot.db`; override with `DATABASE_PATH`.
+ - Storage uses SQLite via `internal/storage/sqlite` (pure Go driver). The database file defaults to `data/financebot.db`; override with `DATABASE_PATH`. Keep backups outside the repo.
 - Telemetry and structured logging hooks can be added in `internal/bot` once persistence is in place.
 - Keep OpenAI prompts and Telegram responses as package-level constants to simplify testing.
 
 ## Roadmap
-- [ ] Expand migrations to handle schema changes (e.g., budgets, tags)
+ - [ ] Expand SQLite migrations to handle schema changes (e.g., budgets, tags)
 - [ ] Add unit tests for extractor, bot handler, and storage adapters
 - [ ] Build expense dashboard leveraging the stored data

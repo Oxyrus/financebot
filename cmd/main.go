@@ -2,96 +2,45 @@ package main
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/joho/godotenv"
 	openai "github.com/sashabaranov/go-openai"
+
+	"github.com/Oxyrus/financebot/internal/bot"
+	"github.com/Oxyrus/financebot/internal/config"
+	"github.com/Oxyrus/financebot/internal/extractor"
+	"github.com/Oxyrus/financebot/internal/storage/memory"
 )
 
-type Expense struct {
-	Category    string  `json:"category"`
-	Amount      float64 `json:"amount"`
-	Description string  `json:"description"`
-}
-
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("no .env file found, reading environment variables directly")
-	}
-
-	telegramToken := os.Getenv("TELEGRAM_TOKEN")
-	openaiKey := os.Getenv("OPENAI_API_KEY")
-	if telegramToken == "" || openaiKey == "" {
-		log.Fatal("TELEGRAM_TOKEN or OPENAI_API_KEY not set")
-	}
-
-	bot, err := tgbotapi.NewBotAPI(telegramToken)
+	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	bot.Debug = false
-	log.Printf("authorized on account %s", bot.Self.UserName)
-
-	openaiClient := openai.NewClient(openaiKey)
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
-	updates := bot.GetUpdatesChan(u)
-
-	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-
-		if update.Message.From.UserName != "iamoxyrus" {
-			continue
-		}
-
-		text := update.Message.Text
-		log.Printf("[%s] %s", update.Message.From.UserName, text)
-
-		expense, err := extractExpense(openaiClient, text)
-		if err != nil {
-			bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, fmt.Sprintf("Error: %v", err)))
-			continue
-		}
-
-		reply := fmt.Sprintf("Recorded\nDescription: %s\nCategory %s\nAmount: $%.2f",
-			expense.Description, expense.Category, expense.Amount)
-		bot.Send(tgbotapi.NewMessage(update.Message.Chat.ID, reply))
-	}
-}
-
-func extractExpense(client *openai.Client, text string) (*Expense, error) {
-	prompt := fmt.Sprintf(`Extract structured data from this expense description:
-		"%s"
-
-		Return a JSON object like this:
-		{
-			"category": "string",
-			"amount": number,
-			"description": "string"
-		}`, text)
-
-	resp, err := client.CreateChatCompletion(context.Background(), openai.ChatCompletionRequest{
-		Model: "gpt-4o-mini",
-		Messages: []openai.ChatCompletionMessage{
-			{Role: openai.ChatMessageRoleSystem, Content: "You extract structured expense data from text and always respond ONLY with valid JSON."},
-			{Role: openai.ChatMessageRoleUser, Content: prompt},
-		},
-	})
+	botAPI, err := tgbotapi.NewBotAPI(cfg.TelegramToken)
 	if err != nil {
-		return nil, err
+		log.Fatal(err)
 	}
 
-	content := resp.Choices[0].Message.Content
-	var exp Expense
-	if err := json.Unmarshal([]byte(content), &exp); err != nil {
-		return nil, fmt.Errorf("failed to parse GPT response: %v\nResponse: %s", err, content)
+	botAPI.Debug = false
+	log.Printf("authorized on account %s", botAPI.Self.UserName)
+
+	openaiClient := openai.NewClient(cfg.OpenAIKey)
+	extractorSvc := extractor.NewOpenAI(openaiClient)
+	store := memory.NewStore()
+
+	expenseBot := bot.New(botAPI, cfg, extractorSvc, store)
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := expenseBot.Start(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		log.Fatalf("bot stopped: %v", err)
 	}
-	return &exp, nil
 }

@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
+	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
@@ -77,8 +80,52 @@ func (b *Bot) handleUpdate(ctx context.Context, update tgbotapi.Update) {
 		return
 	}
 
+	if update.Message.IsCommand() {
+		b.handleCommand(ctx, update)
+		return
+	}
+
+	b.processExpense(ctx, update)
+}
+
+func (b *Bot) reply(chatID int64, text string) {
+	msg := tgbotapi.NewMessage(chatID, text)
+	if _, err := b.api.Send(msg); err != nil {
+		log.Printf("failed to send message: %v", err)
+	}
+}
+
+func (b *Bot) handleCommand(ctx context.Context, update tgbotapi.Update) {
+	msg := update.Message
+	switch msg.Command() {
+	case "add":
+		args := msg.CommandArguments()
+		if args == "" {
+			b.reply(msg.Chat.ID, "Send an expense description after /add, e.g. `/add Coffee $3.50`.")
+			return
+		}
+		update.Message.Text = args
+		b.processExpense(ctx, update)
+	case "stats":
+		since := time.Now().AddDate(0, 0, -7)
+		summary, err := b.store.Stats(ctx, since)
+		if err != nil {
+			b.reply(msg.Chat.ID, fmt.Sprintf("Failed to load stats: %v", err))
+			return
+		}
+		if summary.TotalCount == 0 {
+			b.reply(msg.Chat.ID, "No expenses recorded in the last 7 days.")
+			return
+		}
+		b.reply(msg.Chat.ID, formatSummary(summary, since))
+	default:
+		b.reply(msg.Chat.ID, fmt.Sprintf("Unknown command: /%s", msg.Command()))
+	}
+}
+
+func (b *Bot) processExpense(ctx context.Context, update tgbotapi.Update) {
 	text := update.Message.Text
-	log.Printf("[%s] %s", username, text)
+	log.Printf("[%s] %s", update.Message.From.UserName, text)
 
 	item, err := b.extractor.Extract(ctx, text)
 	if err != nil {
@@ -94,9 +141,29 @@ func (b *Bot) handleUpdate(ctx context.Context, update tgbotapi.Update) {
 	b.reply(update.Message.Chat.ID, item.ReplyMessage())
 }
 
-func (b *Bot) reply(chatID int64, text string) {
-	msg := tgbotapi.NewMessage(chatID, text)
-	if _, err := b.api.Send(msg); err != nil {
-		log.Printf("failed to send message: %v", err)
+func formatSummary(summary storage.Summary, since time.Time) string {
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("Last 7 days (since %s):\n", since.Format("2006-01-02")))
+	builder.WriteString(fmt.Sprintf("Total: $%.2f across %d expenses\n", summary.TotalAmount, summary.TotalCount))
+
+	type catTotal struct {
+		name  string
+		value float64
 	}
+	catTotals := make([]catTotal, 0, len(summary.CategoryTotals))
+	for name, total := range summary.CategoryTotals {
+		catTotals = append(catTotals, catTotal{name: name, value: total})
+	}
+	sort.Slice(catTotals, func(i, j int) bool {
+		return catTotals[i].value > catTotals[j].value
+	})
+
+	if len(catTotals) > 0 {
+		builder.WriteString("By category:\n")
+		for _, ct := range catTotals {
+			builder.WriteString(fmt.Sprintf("- %s: $%.2f\n", ct.name, ct.value))
+		}
+	}
+
+	return strings.TrimRight(builder.String(), "\n")
 }

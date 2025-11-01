@@ -3,11 +3,14 @@ package bot
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/Oxyrus/financebot/internal/expense"
+	"github.com/Oxyrus/financebot/internal/storage"
 )
 
 type fakeExtractor struct {
@@ -25,8 +28,10 @@ func (f *fakeExtractor) Extract(_ context.Context, text string) (expense.Item, e
 }
 
 type fakeStore struct {
-	items []expense.Item
-	err   error
+	items    []expense.Item
+	err      error
+	stats    storage.Summary
+	statsErr error
 }
 
 func (f *fakeStore) SaveExpense(_ context.Context, item expense.Item) error {
@@ -38,6 +43,13 @@ func (f *fakeStore) SaveExpense(_ context.Context, item expense.Item) error {
 }
 
 func (f *fakeStore) Close() error { return nil }
+
+func (f *fakeStore) Stats(_ context.Context, _ time.Time) (storage.Summary, error) {
+	if f.statsErr != nil {
+		return storage.Summary{}, f.statsErr
+	}
+	return f.stats, nil
+}
 
 type fakeAPI struct {
 	messages []string
@@ -171,5 +183,91 @@ func TestHandleUpdateUnauthorizedUser(t *testing.T) {
 	}
 	if len(api.messages) != 0 {
 		t.Fatalf("expected no messages sent, got %d", len(api.messages))
+	}
+}
+
+func TestHandleCommandAddWithArgs(t *testing.T) {
+	api := &fakeAPI{}
+	extract := &fakeExtractor{item: expense.Item{Category: "Coffee", Amount: 3.5, Description: "Morning brew"}}
+	store := &fakeStore{}
+	b := New(api, allowAllAuthorizer{}, extract, store)
+
+	update := tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			From: &tgbotapi.User{UserName: "iamoxyrus"},
+			Chat: &tgbotapi.Chat{ID: 1},
+			Text: "/add Morning coffee $3.50",
+			Entities: []tgbotapi.MessageEntity{
+				{Offset: 0, Length: 4, Type: "bot_command"},
+			},
+		},
+	}
+
+	b.handleUpdate(context.Background(), update)
+
+	if len(store.items) != 1 {
+		t.Fatalf("expected store to save item from /add command, got %d", len(store.items))
+	}
+	if len(api.messages) != 1 {
+		t.Fatalf("expected confirmation message, got %d", len(api.messages))
+	}
+}
+
+func TestHandleCommandAddWithoutArgs(t *testing.T) {
+	api := &fakeAPI{}
+	b := New(api, allowAllAuthorizer{}, &fakeExtractor{}, &fakeStore{})
+
+	update := tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			From: &tgbotapi.User{UserName: "iamoxyrus"},
+			Chat: &tgbotapi.Chat{ID: 1},
+			Text: "/add",
+			Entities: []tgbotapi.MessageEntity{
+				{Offset: 0, Length: 4, Type: "bot_command"},
+			},
+		},
+	}
+
+	b.handleUpdate(context.Background(), update)
+
+	if len(api.messages) != 1 || api.messages[0] == "" {
+		t.Fatalf("expected guidance message for missing args, got %#v", api.messages)
+	}
+}
+
+func TestHandleCommandStats(t *testing.T) {
+	api := &fakeAPI{}
+	b := New(api, allowAllAuthorizer{}, &fakeExtractor{}, &fakeStore{
+		stats: storage.Summary{
+			TotalCount:  2,
+			TotalAmount: 25.5,
+			CategoryTotals: map[string]float64{
+				"Travel": 15.5,
+				"Food":   10,
+			},
+		},
+	})
+
+	update := tgbotapi.Update{
+		Message: &tgbotapi.Message{
+			From: &tgbotapi.User{UserName: "iamoxyrus"},
+			Chat: &tgbotapi.Chat{ID: 1},
+			Text: "/stats",
+			Entities: []tgbotapi.MessageEntity{
+				{Offset: 0, Length: 6, Type: "bot_command"},
+			},
+		},
+	}
+
+	b.handleUpdate(context.Background(), update)
+
+	if len(api.messages) != 1 {
+		t.Fatalf("expected stats message, got %d", len(api.messages))
+	}
+	if !strings.Contains(api.messages[0], "Total: $25.50") {
+		t.Fatalf("expected total in stats message, got %q", api.messages[0])
+	}
+	if !strings.Contains(api.messages[0], "Travel: $15.50") {
+		t.Fatalf("expected category breakdown, got %q", api.messages[0])
 	}
 }

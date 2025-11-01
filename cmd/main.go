@@ -31,6 +31,14 @@ func main() {
 	botAPI.Debug = false
 	log.Printf("authorized on account %s", botAPI.Self.UserName)
 
+	commands := []tgbotapi.BotCommand{
+		{Command: "add", Description: "Record a new expense"},
+		{Command: "stats", Description: "Show expense stats"},
+	}
+	if _, err := botAPI.Request(tgbotapi.NewSetMyCommands(commands...)); err != nil {
+		log.Printf("failed to set bot commands: %v", err)
+	}
+
 	openaiClient := openai.NewClient(cfg.OpenAIKey)
 	extractorSvc := extractor.NewOpenAI(openaiClient)
 	store, err := sqlite.NewStore(cfg.DatabasePath)

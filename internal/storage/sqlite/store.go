@@ -95,6 +95,43 @@ func (s *Store) Close() error {
 	return nil
 }
 
+// Stats aggregates spending grouped by category since the provided time.
+func (s *Store) Stats(ctx context.Context, since time.Time) (storage.Summary, error) {
+	summary := storage.Summary{CategoryTotals: make(map[string]float64)}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT category, COUNT(*), COALESCE(SUM(amount), 0) 
+		FROM expenses
+		WHERE created_at >= ?
+			AND category IS NOT NULL
+			AND category != ''
+		GROUP BY category`, since.UTC())
+	if err != nil {
+		return summary, fmt.Errorf("sqlite: query stats: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			category string
+			count    int64
+			total    float64
+		)
+		if err := rows.Scan(&category, &count, &total); err != nil {
+			return summary, fmt.Errorf("sqlite: scan stats: %w", err)
+		}
+		summary.TotalCount += int(count)
+		summary.TotalAmount += total
+		summary.CategoryTotals[category] = total
+	}
+
+	if err := rows.Err(); err != nil {
+		return summary, fmt.Errorf("sqlite: stats rows: %w", err)
+	}
+
+	return summary, nil
+}
+
 func migrate(db *sql.DB) error {
 	if _, err := db.Exec(expenseSchema); err != nil {
 		return fmt.Errorf("sqlite: migrate schema: %w", err)

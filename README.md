@@ -42,6 +42,10 @@ FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses 
 - Override the default image tag or volume mount as needed for deployment environments.
 - The image is based on `gcr.io/distroless/static-debian12` and runs as user `65532`; make sure the host `data/` directory is writable (e.g., `mkdir -p data && chmod 0777 data` before `make docker-run`).
 
+## Bot Commands
+- `/add <expense>` — Extracts and records an expense from the supplied text (e.g., `/add Coffee $3.50`).
+- `/stats` — Summarizes the last 7 days of spending with totals and category breakdowns.
+
 ## Development Notes
  - Storage uses SQLite via `internal/storage/sqlite` (pure Go driver). The database file defaults to `data/financebot.db`; override with `DATABASE_PATH`. Keep backups outside the repo.
 - Telemetry and structured logging hooks can be added in `internal/bot` once persistence is in place.

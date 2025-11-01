@@ -39,6 +39,5 @@ FinanceBot is a Telegram assistant that leverages OpenAI to categorize expenses 
 - Keep OpenAI prompts and Telegram responses as package-level constants to simplify testing.
 
 ## Roadmap
- - [ ] Expand SQLite migrations to handle schema changes (e.g., budgets, tags)
-- [ ] Add unit tests for extractor, bot handler, and storage adapters
+- [ ] Expand SQLite migrations to handle schema changes (e.g., budgets, tags)
 - [ ] Build expense dashboard leveraging the stored data

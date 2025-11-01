@@ -16,16 +16,23 @@ type Authorizer interface {
 	IsUserAllowed(username string) bool
 }
 
+// TelegramAPI abstracts sending and receiving Telegram updates.
+type TelegramAPI interface {
+	GetUpdatesChan(config tgbotapi.UpdateConfig) tgbotapi.UpdatesChannel
+	StopReceivingUpdates()
+	Send(c tgbotapi.Chattable) (tgbotapi.Message, error)
+}
+
 // Bot wraps Telegram update handling with expense extraction and persistence.
 type Bot struct {
-	api        *tgbotapi.BotAPI
+	api        TelegramAPI
 	extractor  extractor.Service
 	store      storage.ExpenseStore
 	authorizer Authorizer
 }
 
 // New constructs a bot ready to process updates.
-func New(api *tgbotapi.BotAPI, authorizer Authorizer, extractor extractor.Service, store storage.ExpenseStore) *Bot {
+func New(api TelegramAPI, authorizer Authorizer, extractor extractor.Service, store storage.ExpenseStore) *Bot {
 	return &Bot{
 		api:        api,
 		extractor:  extractor,

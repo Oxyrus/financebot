@@ -10,6 +10,10 @@ import (
 	"github.com/Oxyrus/financebot/internal/expense"
 )
 
+type chatCompletionClient interface {
+	CreateChatCompletion(ctx context.Context, request openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
+}
+
 // Service defines the contract for turning free-form text into an expense item.
 type Service interface {
 	Extract(ctx context.Context, text string) (expense.Item, error)
@@ -17,7 +21,7 @@ type Service interface {
 
 // OpenAI implements Service using the OpenAI Chat Completions API.
 type OpenAI struct {
-	client *openai.Client
+	client chatCompletionClient
 	model  string
 }
 
